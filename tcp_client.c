@@ -141,3 +141,54 @@ void network_init() {
     // Bring up the network interface
     netif_set_up(&server_netif);
 }
+
+int main() {
+    init_platform();
+    
+    // Initialize network interface
+    xil_printf("Initializing Network Interface...\r\n");
+    network_init();
+    
+    // Initialize TCP Client
+    while (tcp_client_init() != 0) {
+        xil_printf("Retrying client initialization...\r\n");
+        msleep(1000);
+    }
+    
+    // Tracking variables
+    int connection_attempts = 0;
+    int max_connection_attempts = 5;
+    
+    // Main event loop
+    while (1) {
+        // Process incoming network packets
+        xemacif_input(netif);
+        
+        // Connection management
+        if (!connection_state) {
+            connection_attempts++;
+            if (connection_attempts >= max_connection_attempts) {
+                xil_printf("Max connection attempts reached. Reinitializing...\r\n");
+                tcp_client_init();
+                connection_attempts = 0;
+            }
+        }
+        
+        // Optional: Periodic heartbeat or status check
+        static int heartbeat_counter = 0;
+        heartbeat_counter++;
+        if (heartbeat_counter >= 10000) {
+            xil_printf("System alive. Connection state: %d\r\n", connection_state);
+            heartbeat_counter = 0;
+        }
+        
+        // Optional: Add application-specific tasks
+        // For example, sensor reading, state machine, etc.
+        
+        // Prevent tight loop from consuming 100% CPU
+        usleep(100);  // Small delay
+    }
+    
+    cleanup_platform();
+    return 0;
+}
